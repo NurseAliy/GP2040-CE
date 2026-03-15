@@ -329,7 +329,7 @@ void Gamepad::read()
 	}
 
 	state.aux = 0
-		| (values & mapButtonFn->pinMask)   ? mapButtonFn->buttonMask : 0;
+		| ((values & mapButtonFn->pinMask) ? mapButtonFn->buttonMask : 0);
 
 	state.dpad = 0
 		| ((values & mapDpadUp->pinMask)       ? mapDpadUp->buttonMask              : 0)
@@ -374,10 +374,10 @@ void Gamepad::read()
 	;
 
 	// set the effective dpad mode based on settings + overrides
-	if (values & mapButtonDP->pinMask)	activeDpadMode = DpadMode::DPAD_MODE_DIGITAL;
+	if (values & mapButtonDP->pinMask)		activeDpadMode = DpadMode::DPAD_MODE_DIGITAL;
 	else if (values & mapButtonLS->pinMask)	activeDpadMode = DpadMode::DPAD_MODE_LEFT_ANALOG;
 	else if (values & mapButtonRS->pinMask)	activeDpadMode = DpadMode::DPAD_MODE_RIGHT_ANALOG;
-	else					activeDpadMode = options.dpadMode;
+	else									activeDpadMode = options.dpadMode;
 
 	map48WayModeToggle = (values & map48WayMode->pinMask);
 
@@ -388,6 +388,7 @@ void Gamepad::read()
 	} else {
 		state.lx = joystickMid;
 	}
+
 	if (values & mapAnalogLSYNeg->pinMask) {
 		state.ly = GAMEPAD_JOYSTICK_MIN;
 	} else if (values & mapAnalogLSYPos->pinMask) {
@@ -403,12 +404,38 @@ void Gamepad::read()
 	} else {
 		state.rx = joystickMid;
 	}
+
 	if (values & mapAnalogRSYNeg->pinMask) {
 		state.ry = GAMEPAD_JOYSTICK_MIN;
 	} else if (values & mapAnalogRSYPos->pinMask) {
 		state.ry = GAMEPAD_JOYSTICK_MAX;
 	} else {
 		state.ry = joystickMid;
+	}
+
+	// Precision modifier: hold Fn to reduce stick output to 50%
+	if (values & mapButtonFn->pinMask) {
+		uint16_t halfRange = (GAMEPAD_JOYSTICK_MAX - joystickMid) / 2;
+
+		if (state.lx < joystickMid)
+			state.lx = joystickMid - halfRange;
+		else if (state.lx > joystickMid)
+			state.lx = joystickMid + halfRange;
+
+		if (state.ly < joystickMid)
+			state.ly = joystickMid - halfRange;
+		else if (state.ly > joystickMid)
+			state.ly = joystickMid + halfRange;
+
+		if (state.rx < joystickMid)
+			state.rx = joystickMid - halfRange;
+		else if (state.rx > joystickMid)
+			state.rx = joystickMid + halfRange;
+
+		if (state.ry < joystickMid)
+			state.ry = joystickMid - halfRange;
+		else if (state.ry > joystickMid)
+			state.ry = joystickMid + halfRange;
 	}
 
 	state.lt = 0;
@@ -738,10 +765,8 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 					reqSave = true;
 				}
 			}
-			else // override is already enabled, hold action to disable
+			else
 			{
-				//start timer if last action was not HOTKEY_FOCUS_MODE_TOGGLE (i.e.. it has not been held), or
-				//if the timer has not yet been started
 				if( lastAction != action || is_nil_time(disableFocusModeTimeout))
 				{
 					constexpr uint32_t focusModeToggleHoldMs = 2000;
@@ -781,12 +806,11 @@ void Gamepad::processHotkeyAction(GamepadHotkey action) {
 		case HOTKEY_RS_RIGHT:
 			state.rx = GAMEPAD_JOYSTICK_MAX;
 			break;
-       
-		default: // Unknown action
+
+		default:
 			break;
 	}
 
-	// only save if requested
 	if (reqSave) {
 		EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 	}
